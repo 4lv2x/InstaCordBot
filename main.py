@@ -5,8 +5,10 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 from discord import Intents, Client, Message
+
+from ascii import get_ascii
 from responses import get_response
-from storyloader import check_story, delete_old
+from storyloader import check_story, delete_old, download, fix_duplicates
 
 load_dotenv()
 TOKEN: Final[str] = os.getenv("DISCORD_TOKEN")
@@ -48,12 +50,36 @@ async def chat(ctx, arg) -> None:
 async def watch_stories(ctx, arg) -> None:
     #bot.loop.create_task(check_story(arg))
     await ctx.send("Stories are being downloaded...")
-    if story_loop(arg):
+    download(arg)
+    if len(os.listdir("stories")) > 0:
+        print("Stories downloaded")
+        fix_duplicates()
+        print("Duplicates fixed")
+        await ctx.send("Uploading...")
         for file in os.listdir("stories"):
-            await ctx.send("Uploading...")
-            await ctx.send(file=discord.File("stories/"+file))
+            if file.endswith(".jpg") or file.endswith(".mp4"):
+                await ctx.send(file=discord.File("stories/"+file))
+                print("Story uploaded correctly to Discord")
     else :
         await ctx.send("No stories found")
+
+@bot.command(name="ascii")
+async def ascii_art(ctx, arg) -> None:
+    await ctx.message.delete()
+    await ctx.send(
+        f"```{get_ascii(arg)}```"
+    )
+
+
+@bot.command(name="help")
+async def help_command(ctx) -> None:
+    await ctx.send("Comandos disponibles:\n"
+                   "$image <lol/eduroam> - Prueba de subida de imágenes.\n"
+                   "$say <message> - Repite tu mensaje.\n"
+                   "$chat <message> - Prueba de envío de imágenes (solo responde a ciertas prompts).\n"
+                   "$watch <username> - Descarga y resube historias de IG de un usuario.\n"
+                   "$help - Muestra este mensaje.")
+
 
 def main() -> None:
     bot.run(TOKEN)
