@@ -1,49 +1,62 @@
 from typing import Final
 import os
+
+import discord
+from discord.ext import commands
 from dotenv import load_dotenv
 from discord import Intents, Client, Message
 from responses import get_response
+from storyloader import check_story, delete_old
 
 load_dotenv()
 TOKEN: Final[str] = os.getenv("DISCORD_TOKEN")
 
-intents: Intents = Intents.default()
+intents: Intents = discord.Intents.default()
 intents.message_content = True #NOQA
-client: Client = Client(intents=intents)
 
-async def send_message(message: Message, user_message: str):
-    if not user_message:
-        print("No message")
-        return
+bot = commands.Bot(command_prefix="$", intents=intents)
 
-    if is_private := user_message.startswith("!"):
-        user_message = user_message[1:]
+def story_loop(username) -> bool:
+    print("Deleting old stories...")
+    delete_old()
+    return check_story(username)
 
-    try:
-        response: str = get_response(user_message)
-        await message.author.send(response) if is_private else await message.channel.send(response)
-
-    except Exception as e:
-        print(e)
-
-@client.event
+@bot.event
 async def on_ready() -> None:
-    print(f"{client.user} has connected to Discord!")
+    print(f"{bot.user} has connected to Discord!")
 
-@client.event
-async def on_message(message: Message) -> None:
-    if message.author == client.user:
+@bot.command(name="image")
+async def upload_image(ctx, arg) -> None:
+    if not arg or arg not in ["lol", "eduroam"]:
+        ctx.send("Invalid image")
         return
 
-    username: str = str(message.author)
-    user_message: str = str(message.content)
-    channel: str = str(message.channel)
+    image_path: str = f"images/{arg}.jpg"
 
-    print(f"{username} said '{user_message}' in {channel}")
-    await send_message(message, user_message)
+    await ctx.send(file = discord.File(image_path))
+
+@bot.command()
+async def say(ctx, arg) -> None:
+    await ctx.message.delete()
+    await ctx.send(arg)
+
+@bot.command()
+async def chat(ctx, arg) -> None:
+    await ctx.send(get_response(arg))
+
+@bot.command(name="watch")
+async def watch_stories(ctx, arg) -> None:
+    #bot.loop.create_task(check_story(arg))
+    await ctx.send("Stories are being downloaded...")
+    if story_loop(arg):
+        for file in os.listdir("stories"):
+            await ctx.send("Uploading...")
+            await ctx.send(file=discord.File("stories/"+file))
+    else :
+        await ctx.send("No stories found")
 
 def main() -> None:
-    client.run(TOKEN)
+    bot.run(TOKEN)
 
 if __name__ == "__main__":
     main()
